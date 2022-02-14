@@ -1,3 +1,5 @@
+use std::io::BufRead;
+
 mod builder;
 mod compiler;
 mod language;
@@ -45,6 +47,44 @@ fn run_cli() -> std::io::Result<()> {
     let file = &hvm(&args[2]);
     let parallel = !(args.len() >= 4 && args[3] == "--single-thread");
     return compile_code(&load_file_code(file), file, parallel);
+  }
+
+  if matches!(cmd, "i" | "interactive") {
+
+    use std::io::{self, Write};
+
+    let stdin = io::stdin();
+    let mut stdout = io::stdout();
+    let mut _stderr = io::stderr();
+
+    let mut input = String::new();
+    let mut code = String::new();
+    let mut debug = true;
+
+    loop {
+        write!(stdout, "λ» ")?;
+        stdout.flush()?;
+        stdin.read_line(&mut input)?;
+
+        match input.as_str() {
+          ":q" => {break;}
+          ":d" => {debug = !debug; println!("debug mode: {}", debug);}
+          _ => {
+            if input.starts_with("let ") {
+              code.push_str(input.as_str().split("let ").collect::<Vec<_>>()[1])
+            }else{
+              let parse = parser::read(Box::new(language::parse_term), &input);
+              println!("{}", parse);
+              let (norm,_,_,_) = builder::eval_code(&parse, &code, debug);
+              println!("{}", norm);
+            }
+          }
+        }
+
+        input.clear();
+    }
+
+    return Ok(());
   }
 
   println!("Invalid arguments: {:?}.", args);
