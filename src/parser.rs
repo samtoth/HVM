@@ -324,6 +324,36 @@ fn is_letter(chr: char) -> bool {
   chr.is_ascii_alphanumeric() || chr == '_' || chr == '.'
 }
 
+pub fn digits_here(state: State) -> Answer<String> {
+  let mut digs: String = String::new();
+  let mut state = state;
+  while let Some(got) = head(state) {
+    if got.is_ascii_digit() {
+      digs.push(got);
+      state = tail(state);
+    } else {
+      break;
+    }
+  }
+  Ok((state, digs))
+}
+
+/// Parses digits after skipping comments and whitespace.
+pub fn digits(state: State) -> Answer<String> {
+  let (state, _) = skip(state)?;
+  digits_here(state)
+}
+
+/// Parses non-empty digits after skipping.
+pub fn digits1(state: State) -> Answer<String> {
+  let (state, digits1) = digits(state)?;
+  if !digits1.is_empty() {
+    Ok((state, digits1))
+  } else {
+    expected("digits", 1, state)
+  }
+}
+
 /// Parses a name right after the parsing cursor.
 pub fn name_here(state: State) -> Answer<String> {
   let mut name: String = String::new();

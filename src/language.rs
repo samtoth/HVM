@@ -7,7 +7,7 @@ use std::fmt;
 // Term
 // ----
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Term {
   Var { name: String },
   Dup { nam0: String, nam1: String, expr: BTerm, body: BTerm },
@@ -16,12 +16,14 @@ pub enum Term {
   App { func: BTerm, argm: BTerm },
   Ctr { name: String, args: Vec<BTerm> },
   U32 { numb: u32 },
+  F32 { numb: f32 },
+  I32 { numb: i32 },
   Op2 { oper: Oper, val0: BTerm, val1: BTerm },
 }
 
 pub type BTerm = Box<Term>;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Oper {
   Add,
   Sub,
@@ -132,6 +134,8 @@ impl fmt::Display for Term {
         }
       }
       Self::U32 { numb } => write!(f, "{}", numb),
+      Self::F32 { numb } => write!(f, "{}", numb),
+      Self::I32 { numb } => write!(f, "{}", numb),
       Self::Op2 { oper, val0, val1 } => write!(f, "({} {} {})", oper, val0, val1),
     }
   }
@@ -269,16 +273,78 @@ pub fn parse_ctr(state: parser::State) -> parser::Answer<Option<BTerm>> {
 pub fn parse_u32(state: parser::State) -> parser::Answer<Option<BTerm>> {
   parser::guard(
     Box::new(|state| {
-      let (state, head) = parser::get_char(state)?;
-      Ok((state, ('0'..='9').contains(&head)))
+      let head = parser::head(state);
+      if let Some(head) = head {
+        Ok((state, head.is_ascii_digit()))
+      } else {
+        Ok((state, false))
+      }
     }),
     Box::new(|state| {
-      let (state, numb) = parser::name1(state)?;
+      let (state, numb) = parser::digits1(state).unwrap();
       if !numb.is_empty() {
         Ok((state, Box::new(Term::U32 { numb: numb.parse::<u32>().unwrap() })))
       } else {
         Ok((state, Box::new(Term::U32 { numb: 0 })))
       }
+    }),
+    state,
+  )
+}
+
+pub fn parse_i32(state: parser::State) -> parser::Answer<Option<BTerm>> {
+  parser::guard(
+    Box::new(|state| {
+      let (state, neg) = parser::text("-", state)?;
+      let head = parser::head(state);
+      if let Some(head) = head {
+        Ok((state, head.is_ascii_digit() && neg))
+      } else {
+        Ok((state, false))
+      }
+    }),
+    Box::new(|state| {
+      let (state, _) = parser::text("-", state)?;
+      let (state, dig) = parser::digits1(state)?;
+      Ok((state, Box::new(Term::I32 { numb: -dig.parse::<i32>().unwrap() })))
+    }),
+    state,
+  )
+}
+
+pub fn parse_f32(state: parser::State) -> parser::Answer<Option<BTerm>> {
+  parser::guard(
+    Box::new(|state| {
+      let (state, _) = parser::text("-", state)?;
+      let head = parser::head(state);
+      if let Some(head) = head {
+        if head.is_ascii_digit() {
+          let (state, dig1) = parser::digits1(state)?;
+          let (state, is_dot) = parser::text(".", state)?;
+          if is_dot {
+            let head = parser::head(state);
+            if let Some(head) = head {
+              Ok((state, head.is_ascii_digit()))
+            } else {
+              Ok((state, false))
+            }
+          } else {
+            Ok((state, false))
+          }
+        } else {
+          Ok((state, false))
+        }
+      } else {
+        Ok((state, false))
+      }
+    }),
+    Box::new(|state| {
+      let (state, is_neg) = parser::text("-", state)?;
+      let (state, dig1) = parser::digits1(state)?;
+      let (state, _) = parser::text(".", state)?;
+      let (state, dig2) = parser::digits1(state)?;
+      let numstr = format!("{}{}.{}", if is_neg { "-" } else { "" }, dig1, dig2);
+      Ok((state, Box::new(Term::F32 { numb: numstr.parse::<f32>().unwrap() })))
     }),
     state,
   )
@@ -421,6 +487,8 @@ pub fn parse_term(state: parser::State) -> parser::Answer<BTerm> {
       Box::new(parse_lam),
       Box::new(parse_lam_ugly),
       Box::new(parse_ctr),
+      Box::new(parse_f32),
+      Box::new(parse_i32),
       Box::new(parse_op2),
       Box::new(parse_app),
       Box::new(parse_u32),
@@ -477,4 +545,55 @@ pub fn read_file(code: &str) -> File {
 #[allow(dead_code)]
 pub fn read_rule(code: &str) -> Option<Rule> {
   parser::read(Box::new(parse_rule), code)
+}
+
+#[cfg(test)]
+mod tests {
+
+  use super::*;
+  use proptest::prelude::*;
+
+  fn test_term(
+    code: String,
+    expected_term: Term,
+  ) -> Result<(), proptest::test_runner::TestCaseError> {
+    let state = parser::State { code: &code, index: 0 };
+    let res = parse_term(state);
+    prop_assert!(res.is_ok(), "expected term: {}", expected_term);
+    let (_, res) = res.unwrap();
+    prop_assert_eq!(
+      *res.clone(),
+      expected_term.clone(),
+      "testing code: `{}`\n {} =/= {}",
+      code,
+      *res,
+      expected_term
+    );
+    Ok(())
+  }
+
+  proptest! {
+    //test any negative i32 gets parsed as an i32
+    #[test]
+    fn test_i32(int in (i32::MIN..-1i32)) {
+      test_term(format!("{}", int), Term::I32 {numb: int})?;
+    }
+  }
+
+  proptest! {
+    #[test]
+    fn test_u32(uint in any::<u32>()) {
+      test_term(format!("{}", uint), Term::U32 {numb: uint})?;
+    }
+  }
+
+  proptest! {
+    #[test]
+    fn test_f32(neg in any::<bool>(), dig in any::<u32>(), dig2 in any::<u32>()) {
+      if dig == 0 && dig2 == 0 {} else{
+      let code = format!("{}{}.{}", if neg {"-"} else {""}, dig, dig2);
+      test_term(code.clone(), Term::F32 {numb: code.parse::<f32>().unwrap()})?;
+    }
+    }
+  }
 }
