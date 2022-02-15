@@ -74,7 +74,7 @@ fn run_cli() -> std::io::Result<()> {
               code.push_str(input.as_str().split("let ").collect::<Vec<_>>()[1])
             }else{
               let parse = parser::read(Box::new(language::parse_term), &input);
-              println!("{}", parse);
+              println!("parsed successfully as {}", parse);
               let (norm,_,_,_) = builder::eval_code(&parse, &code, debug);
               println!("{}", norm);
             }
