@@ -178,7 +178,7 @@ pub fn sanitize_rule(rule: &lang::Rule) -> Result<lang::Rule, String> {
               }
             }
           }
-          lang::Term::U32 { .. } => {}
+          lang::Term::U32 { .. } | lang::Term::I32 { .. } | lang::Term::F32 { .. } => {}
           _ => {
             return Err("Invalid left-hand side".to_owned());
           }
@@ -295,6 +295,14 @@ pub fn sanitize_rule(rule: &lang::Rule) -> Result<lang::Rule, String> {
       }
       lang::Term::U32 { numb } => {
         let term = lang::Term::U32 { numb: *numb };
+        Box::new(term)
+      }
+      lang::Term::I32 { numb } => {
+        let term = lang::Term::I32 { numb: *numb };
+        Box::new(term)
+      }
+      lang::Term::F32 { numb } => {
+        let term = lang::Term::F32 { numb: *numb };
         Box::new(term)
       }
     };
@@ -576,7 +584,7 @@ pub fn flatten(rules: &[lang::Rule]) -> Vec<lang::Rule> {
                 return false;
               }
             }
-            lang::Term::U32 { .. } => {
+            lang::Term::U32 { .. } | lang::Term::I32 { .. } | lang::Term::F32 { .. } => {
               return false;
             }
             lang::Term::Var { .. } => {
@@ -597,6 +605,28 @@ pub fn flatten(rules: &[lang::Rule]) -> Vec<lang::Rule> {
           lang::Term::U32 { numb: a_arg_numb } => match **b_arg {
             lang::Term::U32 { numb: b_arg_numb } => {
               if a_arg_numb != b_arg_numb {
+                return false;
+              }
+            }
+            lang::Term::Ctr { .. } => {
+              return false;
+            }
+            _ => {}
+          },
+          lang::Term::I32 { numb: a_arg_numb } => match **b_arg {
+            lang::Term::I32 { numb: b_arg_numb } => {
+              if a_arg_numb != b_arg_numb {
+                return false;
+              }
+            }
+            lang::Term::Ctr { .. } => {
+              return false;
+            }
+            _ => {}
+          },
+          lang::Term::F32 { numb: a_arg_numb } => match **b_arg {
+            lang::Term::F32 { numb: b_arg_numb } => {
+              if a_arg_numb != b_arg_numb {  //Floating point equality - is this okay?
                 return false;
               }
             }
@@ -638,7 +668,7 @@ pub fn flatten(rules: &[lang::Rule]) -> Vec<lang::Rule> {
                         new_arg_args.push(Box::new(lang::Term::Var { name: var_name.clone() }));
                         new_rhs_args.push(Box::new(lang::Term::Var { name: var_name.clone() }));
                       }
-                      lang::Term::U32 { .. } => {
+                      lang::Term::U32 { .. } | lang::Term::I32 { .. } | lang::Term::F32 { .. } => {
                         let var_name = format!(".{}", fresh(name_count));
                         new_arg_args.push(Box::new(lang::Term::Var { name: var_name.clone() }));
                         new_rhs_args.push(Box::new(lang::Term::Var { name: var_name.clone() }));

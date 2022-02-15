@@ -551,6 +551,37 @@ pub fn read_rule(code: &str) -> Option<Rule> {
 mod tests {
 
   use super::*;
+
+  fn oper_strat() -> impl Strategy<Value = Oper> {
+    prop_oneof![
+      Just(Oper::Add),
+      Just(Oper::Sub),
+      Just(Oper::Mul),
+      Just(Oper::Div),
+      Just(Oper::Mod),
+      Just(Oper::And),
+      Just(Oper::Or),
+      Just(Oper::Xor),
+      Just(Oper::Shl),
+      Just(Oper::Shr),
+      Just(Oper::Lte),
+      Just(Oper::Ltn),
+      Just(Oper::Eql),
+      Just(Oper::Gte),
+      Just(Oper::Gtn),
+      Just(Oper::Neq),
+    ]
+  }
+
+  fn oper_strat_float() -> impl Strategy<Value = Oper> {
+    prop_oneof![
+      Just(Oper::Add),
+      Just(Oper::Sub),
+      Just(Oper::Mul),
+      Just(Oper::Div),
+    ]
+  }
+
   use proptest::prelude::*;
 
   fn test_term(
@@ -573,6 +604,30 @@ mod tests {
   }
 
   proptest! {
+    #[test]
+    fn test_op_u32(a: u32, b: u32, op in oper_strat()) {
+      test_term(format!("({} {} {})", op, a, b), Term::Op2 {oper: op, val0: Box::new(Term::U32{numb:a}), val1: Box::new(Term::U32{numb:b})})?;
+    }
+  }
+
+  proptest! {
+    #[test]
+    fn test_op_i32(a in (i32::MIN..-1i32), b in (i32::MIN..-1i32), op in oper_strat()) {
+      
+      test_term(format!("({} {} {})", op, a, b), Term::Op2 {oper: op, val0: Box::new(Term::I32{numb:a}), val1: Box::new(Term::I32{numb:b})})?;
+    }
+  }
+
+  proptest! {
+    #[test]
+    fn test_op_f32(a in float_strat(), b in float_strat(), op in oper_strat_float()) {
+      let aa: f32 = a.parse()?;
+      let bb: f32 = b.parse()?;
+      test_term(format!("({} {} {})", op, a, b), Term::Op2 {oper: op, val0: Box::new(Term::F32{numb:aa}), val1: Box::new(Term::F32{numb:bb})})?;
+    }
+  }
+
+  proptest! {
     //test any negative i32 gets parsed as an i32
     #[test]
     fn test_i32(int in (i32::MIN..-1i32)) {
@@ -582,18 +637,29 @@ mod tests {
 
   proptest! {
     #[test]
-    fn test_u32(uint in any::<u32>()) {
+    fn test_u32(uint: u32) {
       test_term(format!("{}", uint), Term::U32 {numb: uint})?;
     }
   }
 
+  fn float_strat() -> impl Strategy<Value = String> {
+    any::<bool>().prop_flat_map(
+        |neg| {
+            any::<(u32, u32)>().prop_filter("",|(a,b)| *a != 0 && *b != 0).prop_map(move |(dig, dig1)|
+            {
+              format!("{}{}.{}", if neg {"-"} else {""}, dig, dig1) 
+            }
+          )
+        }
+        )
+  }
+
   proptest! {
     #[test]
-    fn test_f32(neg in any::<bool>(), dig in any::<u32>(), dig2 in any::<u32>()) {
-      if dig == 0 && dig2 == 0 {} else{
-      let code = format!("{}{}.{}", if neg {"-"} else {""}, dig, dig2);
-      test_term(code.clone(), Term::F32 {numb: code.parse::<f32>().unwrap()})?;
-    }
+    fn test_f32(float in float_strat())  {
+      test_term(float.clone(), Term::F32 {numb: float.parse::<f32>().unwrap()})?;
     }
   }
+
+
 }

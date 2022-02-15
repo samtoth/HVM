@@ -33,7 +33,8 @@ pub const CTR: u64 = 0x8;
 pub const CAL: u64 = 0x9;
 pub const OP2: u64 = 0xA;
 pub const U32: u64 = 0xB;
-pub const F32: u64 = 0xC;
+pub const I32: u64 = 0xC;
+pub const F32: u64 = 0xD;
 pub const OUT: u64 = 0xE;
 pub const NIL: u64 = 0xF;
 
@@ -126,6 +127,14 @@ pub fn U_32(val: u64) -> Lnk {
   (U32 * TAG) | val
 }
 
+pub fn I_32(val: i32) -> Lnk {
+  (I32 * TAG) | (val as u64)
+}
+
+pub fn F_32(val: f32) -> Lnk {
+  (F32 * TAG) | (val.to_bits() as u64)
+}
+
 pub fn Nil() -> Lnk {
   NIL * TAG
 }
@@ -163,6 +172,16 @@ pub fn get_ari(lnk: Lnk) -> u64 {
 
 pub fn get_loc(lnk: Lnk, arg: u64) -> u64 {
   get_val(lnk) + arg
+}
+
+pub fn get_i32(lnk: Lnk) -> i32 {
+  // Safety: value is always stored as a i32 cast to a u64 with the tag appended at the start
+  //          get_val returns just the first 32 bits which represent the exact i32 in memory
+  unsafe { std::mem::transmute::<u32, i32>(get_val(lnk) as u32) }
+}
+
+pub fn get_f32(lnk: Lnk) -> f32 {
+  f32::from_bits(get_val(lnk) as u32)
 }
 
 // Memory
@@ -242,6 +261,8 @@ pub fn collect(mem: &mut Worker, term: Lnk) {
       collect(mem, ask_arg(mem, term, 1));
     }
     U32 => {}
+    I32 => {}
+    F32 => {}
     CTR | CAL => {
       let arity = get_ari(term);
       for i in 0..arity {
@@ -451,7 +472,7 @@ pub fn reduce(
               let done = Par(get_ext(arg0), if get_tag(term) == DP0 { par0 } else { par1 });
               link(mem, host, done);
             }
-          } else if get_tag(arg0) == U32 {
+          } else if get_tag(arg0) == U32 || get_tag(arg0) == I32 || get_tag(arg0) == F32 {
             //println!("dup-u32");
             inc_cost(mem);
             subst(mem, ask_arg(mem, term, 0), arg0);
@@ -518,6 +539,53 @@ pub fn reduce(
               _ => 0,
             };
             let done = U_32(c);
+            clear(mem, get_loc(term, 0), 2);
+            link(mem, host, done);
+          } else if get_tag(arg0) == I32 && get_tag(arg1) == I32 {
+            //println!("op2-i32");
+            inc_cost(mem);
+            let a = get_i32(arg0);
+            let b = get_i32(arg1);
+            let done = match get_ext(term) {
+              ADD => I_32(a + b),
+              SUB => I_32(a - b),
+              MUL => I_32(a * b),
+              DIV => I_32(a / b),
+              MOD => I_32(a % b),
+              AND => I_32(a & b),
+              OR => I_32(a | b),
+              XOR => I_32(a ^ b),
+              SHL => I_32(a << b),
+              SHR => I_32(a >> b),
+              LTN => U_32(u64::from(a < b)), //Should relations on integers return unsigned?? to be consistent with relations on floats
+              LTE => U_32(u64::from(a <= b)),
+              EQL => U_32(u64::from(a == b)),
+              GTE => U_32(u64::from(a >= b)),
+              GTN => U_32(u64::from(a > b)),
+              NEQ => U_32(u64::from(a != b)),
+              _ => I_32(0),
+            };
+            clear(mem, get_loc(term, 0), 2);
+            link(mem, host, done);
+          } else if get_tag(arg0) == F32 && get_tag(arg1) == F32 {
+            //println!("op2-f32");
+            inc_cost(mem);
+            let a = get_f32(arg0);
+            let b = get_f32(arg1);
+            let done = match get_ext(term) {
+              ADD => F_32(a + b),
+              SUB => F_32(a - b),
+              MUL => F_32(a * b),
+              DIV => F_32(a / b),
+              MOD | AND | OR | XOR | SHL | SHR => I_32(0), //Here should we return 0 quitely or simply throw an error??
+              LTN => U_32(u64::from(a < b)),
+              LTE => U_32(u64::from(a <= b)),
+              EQL => U_32(u64::from(a == b)),
+              GTE => U_32(u64::from(a >= b)),
+              GTN => U_32(u64::from(a > b)),
+              NEQ => U_32(u64::from(a != b)),
+              _ => I_32(0),
+            };
             clear(mem, get_loc(term, 0), 2);
             link(mem, host, done);
           } else if get_tag(arg0) == PAR {
@@ -677,6 +745,7 @@ pub fn show_lnk(x: Lnk) -> String {
       CAL => "CAL",
       OP2 => "OP2",
       U32 => "U32",
+      I32 => "I32",
       F32 => "F32",
       OUT => "OUT",
       NIL => "NIL",
@@ -819,6 +888,12 @@ pub fn show_term(
       }
       U32 => {
         format!("{}", get_val(term))
+      }
+      I32 => {
+        format!("{}", get_i32(term))
+      }
+      F32 => {
+        format!("{}", get_f32(term))
       }
       CTR | CAL => {
         let func = get_ext(term);

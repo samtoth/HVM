@@ -18,6 +18,8 @@ pub enum DynTerm {
   Cal { func: u64, args: Vec<DynTerm> },
   Ctr { func: u64, args: Vec<DynTerm> },
   U32 { numb: u32 },
+  F32 { numb: f32 },
+  I32 { numb: i32 },
   Op2 { oper: u64, val0: Box<DynTerm>, val1: Box<DynTerm> },
 }
 
@@ -333,6 +335,8 @@ fn term_to_dynterm(comp: &rb::RuleBook, term: &lang::Term, free_vars: u64) -> Dy
         }
       }
       lang::Term::U32 { numb } => DynTerm::U32 { numb: *numb },
+      lang::Term::I32 { numb } => DynTerm::I32 { numb: *numb },
+      lang::Term::F32 { numb } => DynTerm::F32 { numb: *numb },
       lang::Term::Op2 { oper, val0, val1 } => {
         let oper = convert_oper(oper);
         let val0 = Box::new(convert_term(val0, comp, depth + 0, vars));
@@ -439,6 +443,8 @@ fn build_body(dups_count: &mut DupsCount, term: &DynTerm, free_vars: u64) -> Bod
         }
       }
       DynTerm::U32 { numb } => Elem::Fix { value: rt::U_32(*numb as u64) },
+      DynTerm::I32 { numb } => Elem::Fix { value: rt::I_32(*numb) },
+      DynTerm::F32 { numb } => Elem::Fix { value: rt::F_32(*numb) },
       DynTerm::Op2 { oper, val0, val1 } => {
         let targ = nodes.len() as u64;
         nodes.push(vec![Elem::Fix { value: 0 }; 2]);
