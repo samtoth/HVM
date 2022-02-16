@@ -10,7 +10,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-/*! GENERATED_PARALLEL_FLAG !*/
+#define PARALLEL
 
 #ifdef PARALLEL
 #include <pthread.h>
@@ -46,7 +46,7 @@ typedef pthread_t Thd;
 #define HEAP_SIZE (8 * U64_PER_GB * sizeof(u64))
 
 #ifdef PARALLEL
-#define MAX_WORKERS (/*! GENERATED_NUM_THREADS */ 1 /* GENERATED_NUM_THREADS !*/)
+#define MAX_WORKERS (8)
 #else
 #define MAX_WORKERS (1)
 #endif
@@ -111,7 +111,8 @@ typedef u64 Lnk;
 #define NEQ (0xF)
 
 //GENERATED_CONSTRUCTOR_IDS_START//
-/*! GENERATED_CONSTRUCTOR_IDS !*/
+#define _MAIN_ (0)
+
 //GENERATED_CONSTRUCTOR_IDS_END//
 
 #ifndef _MAIN_
@@ -531,7 +532,13 @@ Lnk reduce(Worker* mem, u64 root, u64 slen) {
           switch (fun)
           //GENERATED_REWRITE_RULES_STEP_0_START//
           {
-/*! GENERATED_REWRITE_RULES_STEP_0 !*/
+            case _MAIN_: {
+              if (get_ari(term) == 0) {
+                init = 0;
+                continue;
+              }
+            };
+
           }
           //GENERATED_REWRITE_RULES_STEP_0_END//
 
@@ -878,7 +885,76 @@ Lnk reduce(Worker* mem, u64 root, u64 slen) {
           switch (fun)
           //GENERATED_REWRITE_RULES_STEP_1_START//
           {
-/*! GENERATED_REWRITE_RULES_STEP_1 !*/
+            case _MAIN_: {
+              if (1) {
+                inc_cost(mem);
+                u64 ret_0;
+                if (get_tag(U_32(1)) == U32 && get_tag(U_32(1)) == U32) {
+                  ret_0 = U_32(get_val(U_32(1)) + get_val(U_32(1)));
+                  inc_cost(mem);
+                } else if (get_tag(U_32(1)) == I32 && get_tag(U_32(1)) == I32) {
+                  ret_0 = I_32(get_i32(U_32(1)) + get_i32(U_32(1)));
+                  inc_cost(mem);
+                } else if (get_tag(U_32(1)) == F32 && get_tag(U_32(1)) == F32) {
+                  ret_0 = F_32(get_f32(U_32(1)) + get_f32(U_32(1)));
+                  inc_cost(mem);
+                } else {
+                  u64 op2_1 = alloc(mem, 2);
+                  link(mem, op2_1 + 0, U_32(1));
+                  link(mem, op2_1 + 1, U_32(1));
+                  ret_0 = Op2(ADD, op2_1);
+                }
+                u64 ret_2;
+                if (get_tag(I_32(-1)) == U32 && get_tag(I_32(-4)) == U32) {
+                  ret_2 = U_32(get_val(I_32(-1)) + get_val(I_32(-4)));
+                  inc_cost(mem);
+                } else if (get_tag(I_32(-1)) == I32 && get_tag(I_32(-4)) == I32) {
+                  ret_2 = I_32(get_i32(I_32(-1)) + get_i32(I_32(-4)));
+                  inc_cost(mem);
+                } else if (get_tag(I_32(-1)) == F32 && get_tag(I_32(-4)) == F32) {
+                  ret_2 = F_32(get_f32(I_32(-1)) + get_f32(I_32(-4)));
+                  inc_cost(mem);
+                } else {
+                  u64 op2_3 = alloc(mem, 2);
+                  link(mem, op2_3 + 0, I_32(-1));
+                  link(mem, op2_3 + 1, I_32(-4));
+                  ret_2 = Op2(ADD, op2_3);
+                }
+                u64 ret_4;
+                if (get_tag(F_32(1.3)) == U32 && get_tag(F_32(5.4)) == U32) {
+                  ret_4 = U_32(get_val(F_32(1.3)) + get_val(F_32(5.4)));
+                  inc_cost(mem);
+                } else if (get_tag(F_32(1.3)) == I32 && get_tag(F_32(5.4)) == I32) {
+                  ret_4 = I_32(get_i32(F_32(1.3)) + get_i32(F_32(5.4)));
+                  inc_cost(mem);
+                } else if (get_tag(F_32(1.3)) == F32 && get_tag(F_32(5.4)) == F32) {
+                  ret_4 = F_32(get_f32(F_32(1.3)) + get_f32(F_32(5.4)));
+                  inc_cost(mem);
+                } else {
+                  u64 op2_5 = alloc(mem, 2);
+                  link(mem, op2_5 + 0, F_32(1.3));
+                  link(mem, op2_5 + 1, F_32(5.4));
+                  ret_4 = Op2(ADD, op2_5);
+                }
+                u64 ctr_6 = alloc(mem, 0);
+                u64 ctr_7 = alloc(mem, 2);
+                link(mem, ctr_7 + 0, ret_4);
+                link(mem, ctr_7 + 1, Ctr(0, 2, ctr_6));
+                u64 ctr_8 = alloc(mem, 2);
+                link(mem, ctr_8 + 0, ret_2);
+                link(mem, ctr_8 + 1, Ctr(2, 1, ctr_7));
+                u64 ctr_9 = alloc(mem, 2);
+                link(mem, ctr_9 + 0, ret_0);
+                link(mem, ctr_9 + 1, Ctr(2, 1, ctr_8));
+                u64 done = Ctr(2, 1, ctr_9);
+                link(mem, host, done);
+                clear(mem, get_loc(term, 0), 0);
+                init = 1;
+                continue;
+              }
+              break;
+            };
+
           }
           //GENERATED_REWRITE_RULES_STEP_1_END//
 
@@ -1453,9 +1529,12 @@ int main(int argc, char* argv[]) {
   struct timeval stop, start;
 
   // Id-to-Name map
-  const u64 id_to_name_size = /*! GENERATED_NAME_COUNT */ 1 /* GENERATED_NAME_COUNT !*/;
+  const u64 id_to_name_size = 3;
   char* id_to_name_data[id_to_name_size];
-/*! GENERATED_ID_TO_NAME_DATA !*/;
+  id_to_name_data[0] = "Main";
+  id_to_name_data[1] = "Cons";
+  id_to_name_data[2] = "Nill";
+;
 
   // Builds main term
   mem.size = 0;

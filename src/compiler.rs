@@ -136,6 +136,16 @@ fn compile_func(
         let same_val = format!("get_val(ask_arg(mem, term, {})) == {}u", i, rt::get_val(*cond));
         matched.push(format!("({} && {})", same_tag, same_val));
       }
+      if rt::get_tag(*cond) == rt::I32 {
+        let same_tag = format!("get_tag(ask_arg(mem, term, {})) == I32", i);
+        let same_val = format!("get_i32(ask_arg(mem, term, {})) == {}", i, rt::get_i32(*cond));
+        matched.push(format!("({} && {})", same_tag, same_val));
+      }
+      if rt::get_tag(*cond) == rt::F32 {
+        let same_tag = format!("get_tag(ask_arg(mem, term, {})) == F32", i);
+        let same_val = format!("get_f32(ask_arg(mem, term, {})) == {}", i, rt::get_f32(*cond));
+        matched.push(format!("({} && {})", same_tag, same_val));
+      }
       if rt::get_tag(*cond) == rt::CTR {
         let some_tag = format!("get_tag(ask_arg(mem, term, {})) == CTR", i);
         let some_ext = format!("get_ext(ask_arg(mem, term, {})) == {}u", i, rt::get_ext(*cond));
@@ -223,7 +233,7 @@ fn compile_func_rule_term(
         line(code, tab, &format!("u64 {};", dup0));
         line(code, tab, &format!("u64 {};", dup1));
         if INLINE_NUMBERS {
-          line(code, tab + 0, &format!("if (get_tag({}) == U32) {{", copy));
+          line(code, tab + 0, &format!("if (get_tag({0}) == U32 || get_tag({0}) == I32 || get_tag({0}) == F32) {{", copy));
           line(code, tab + 1, "inc_cost(mem);");
           line(code, tab + 1, &format!("{} = {};", dup0, copy));
           line(code, tab + 1, &format!("{} = {};", dup1, copy));
@@ -346,6 +356,65 @@ fn compile_func_rule_term(
             _ => line(code, tab + 1, &format!("{} = ?;", retx)),
           }
           line(code, tab + 1, "inc_cost(mem);");
+
+          // Check for i32
+          line(
+            code,
+            tab + 0,
+            &format!("}} else if (get_tag({}) == I32 && get_tag({}) == I32) {{", val0, val1),
+          );
+          let a = format!("get_i32({})", val0);
+          let b = format!("get_i32({})", val1);
+          match *oper {
+            rt::ADD => line(code, tab + 1, &format!("{} = I_32({} + {});", retx, a, b)),
+            rt::SUB => line(code, tab + 1, &format!("{} = I_32({} - {});", retx, a, b)),
+            rt::MUL => line(code, tab + 1, &format!("{} = I_32({} * {});", retx, a, b)),
+            rt::DIV => line(code, tab + 1, &format!("{} = I_32({} / {});", retx, a, b)),
+            rt::MOD => line(code, tab + 1, &format!("{} = I_32({} % {});", retx, a, b)),
+            rt::AND => line(code, tab + 1, &format!("{} = I_32({} & {});", retx, a, b)),
+            rt::OR  => line(code, tab + 1, &format!("{} = I_32({} | {});", retx, a, b)),
+            rt::XOR => line(code, tab + 1, &format!("{} = I_32({} ^ {});", retx, a, b)),
+            rt::SHL => line(code, tab + 1, &format!("{} = I_32({} << {});", retx, a, b)),
+            rt::SHR => line(code, tab + 1, &format!("{} = I_32({} >> {});", retx, a, b)),
+            rt::LTN => line(code, tab + 1, &format!("{} = U_32({} <  {} ? 1 : 0);", retx, a, b)),
+            rt::LTE => line(code, tab + 1, &format!("{} = U_32({} <= {} ? 1 : 0);", retx, a, b)),
+            rt::EQL => line(code, tab + 1, &format!("{} = U_32({} == {} ? 1 : 0);", retx, a, b)),
+            rt::GTE => line(code, tab + 1, &format!("{} = U_32({} >= {} ? 1 : 0);", retx, a, b)),
+            rt::GTN => line(code, tab + 1, &format!("{} = U_32({} >  {} ? 1 : 0);", retx, a, b)),
+            rt::NEQ => line(code, tab + 1, &format!("{} = U_32({} != {} ? 1 : 0);", retx, a, b)),
+            _ => line(code, tab + 1, &format!("{} = ?;", retx)),
+          }
+          line(code, tab + 1, "inc_cost(mem);");
+
+          // Check for f32
+          line(
+            code,
+            tab + 0,
+            &format!("}} else if (get_tag({}) == F32 && get_tag({}) == F32) {{", val0, val1),
+          );
+          let a = format!("get_f32({})", val0);
+          let b = format!("get_f32({})", val1);
+          match *oper {
+            rt::ADD => line(code, tab + 1, &format!("{} = F_32({} + {});", retx, a, b)),
+            rt::SUB => line(code, tab + 1, &format!("{} = F_32({} - {});", retx, a, b)),
+            rt::MUL => line(code, tab + 1, &format!("{} = F_32({} * {});", retx, a, b)),
+            rt::DIV => line(code, tab + 1, &format!("{} = F_32({} / {});", retx, a, b)),
+            rt::MOD => line(code, tab + 1, &format!("{} = F_32({} % {});", retx, a, b)),
+            rt::AND => line(code, tab + 1, &format!("{} = F_32({} & {});", retx, a, b)),
+            rt::OR  => line(code, tab + 1, &format!("{} = F_32({} | {});", retx, a, b)),
+            rt::XOR => line(code, tab + 1, &format!("{} = F_32({} ^ {});", retx, a, b)),
+            rt::SHL => line(code, tab + 1, &format!("{} = F_32({} << {});", retx, a, b)),
+            rt::SHR => line(code, tab + 1, &format!("{} = F_32({} >> {});", retx, a, b)),
+            rt::LTN => line(code, tab + 1, &format!("{} = U_32({} <  {} ? 1 : 0);", retx, a, b)),
+            rt::LTE => line(code, tab + 1, &format!("{} = U_32({} <= {} ? 1 : 0);", retx, a, b)),
+            rt::EQL => line(code, tab + 1, &format!("{} = U_32({} == {} ? 1 : 0);", retx, a, b)),
+            rt::GTE => line(code, tab + 1, &format!("{} = U_32({} >= {} ? 1 : 0);", retx, a, b)),
+            rt::GTN => line(code, tab + 1, &format!("{} = U_32({} >  {} ? 1 : 0);", retx, a, b)),
+            rt::NEQ => line(code, tab + 1, &format!("{} = U_32({} != {} ? 1 : 0);", retx, a, b)),
+            _ => line(code, tab + 1, &format!("{} = ?;", retx)),
+          }
+          line(code, tab + 1, "inc_cost(mem);");
+
           line(code, tab + 0, "} else {");
         }
         line(code, tab + 1, &format!("u64 {} = alloc(mem, 2);", name));
