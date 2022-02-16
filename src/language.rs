@@ -319,7 +319,7 @@ pub fn parse_f32(state: parser::State) -> parser::Answer<Option<BTerm>> {
       let head = parser::head(state);
       if let Some(head) = head {
         if head.is_ascii_digit() {
-          let (state, dig1) = parser::digits1(state)?;
+          let (state, _) = parser::digits1(state)?;
           let (state, is_dot) = parser::text(".", state)?;
           if is_dot {
             let head = parser::head(state);

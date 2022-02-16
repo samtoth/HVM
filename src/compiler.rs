@@ -305,6 +305,12 @@ fn compile_func_rule_term(
       bd::DynTerm::U32 { numb } => {
         format!("U_32({})", numb)
       }
+      bd::DynTerm::I32 { numb } => {
+        format!("I_32({})", numb)
+      }
+      bd::DynTerm::F32 { numb } => {
+        format!("F_32({})", numb)
+      }
       bd::DynTerm::Op2 { oper, val0, val1 } => {
         let retx = fresh(nams, "ret");
         let name = fresh(nams, "op2");

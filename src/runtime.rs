@@ -128,7 +128,7 @@ pub fn U_32(val: u64) -> Lnk {
 }
 
 pub fn I_32(val: i32) -> Lnk {
-  (I32 * TAG) | (val as u64)
+  (I32 * TAG) | (unsafe {std::mem::transmute::<i32, u32>(val)} as u64)
 }
 
 pub fn F_32(val: f32) -> Lnk {
@@ -911,7 +911,7 @@ pub fn show_term(
         };
         format!("({}{})", name, args.iter().map(|x| format!(" {}", x)).collect::<String>())
       }
-      _ => String::from("?"),
+      _ => format!("?({})", get_tag(term)),
     };
     if term == focus {
       format!("${}", done)
