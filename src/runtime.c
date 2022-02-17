@@ -1241,12 +1241,154 @@ void readback_signed(Stk* chrs, i32 n) {
   }
 }
 
-void readback_floating(Stk* chrs, f32 n){
-  stk_push(chrs, '?');
-  stk_push(chrs, 'f');
-  stk_push(chrs, '3');
-  stk_push(chrs, '2');
+i32 normalizeFloat(f32 *value) {
+  const double positiveExpThreshold = 1e7;
+  const double negativeExpThreshold = 1e-5;
+  i32 exponent = 0;
+
+  if (*value >= positiveExpThreshold) {
+    if (*value >= 1e256) {
+      *value /= 1e256;
+      exponent += 256;
+    }
+    if (*value >= 1e128) {
+      *value /= 1e128;
+      exponent += 128;
+    }
+    if (*value >= 1e64) {
+      *value /= 1e64;
+      exponent += 64;
+    }
+    if (*value >= 1e32) {
+      *value /= 1e32;
+      exponent += 32;
+    }
+    if (*value >= 1e16) {
+      *value /= 1e16;
+      exponent += 16;
+    }
+    if (*value >= 1e8) {
+      *value /= 1e8;
+      exponent += 8;
+    }
+    if (*value >= 1e4) {
+      *value /= 1e4;
+      exponent += 4;
+    }
+    if (*value >= 1e2) {
+      *value /= 1e2;
+      exponent += 2;
+    }
+    if (*value >= 1e1) {
+      *value /= 1e1;
+      exponent += 1;
+    }
+  }
+
+  if (*value > 0 && *value <= negativeExpThreshold) {
+    if (*value < 1e-255) {
+      *value *= 1e256;
+      exponent -= 256;
+    }
+    if (*value < 1e-127) {
+      *value *= 1e128;
+      exponent -= 128;
+    }
+    if (*value < 1e-63) {
+      *value *= 1e64;
+      exponent -= 64;
+    }
+    if (*value < 1e-31) {
+      *value *= 1e32;
+      exponent -= 32;
+    }
+    if (*value < 1e-15) {
+      *value *= 1e16;
+      exponent -= 16;
+    }
+    if (*value < 1e-7) {
+      *value *= 1e8;
+      exponent -= 8;
+    }
+    if (*value < 1e-3) {
+      *value *= 1e4;
+      exponent -= 4;
+    }
+    if (*value < 1e-1) {
+      *value *= 1e2;
+      exponent -= 2;
+    }
+    if (*value < 1e0) {
+      *value *= 1e1;
+      exponent -= 1;
+    }
+  }
+
+  return exponent;
 }
+
+
+void splitFloat(f32 val, u32 *integral, u32 *decimal, i32 *exp) {
+  *exp = normalizeFloat(&val);
+
+  *integral = (u32)val;
+  f32 remainder = val - *integral;
+
+  remainder *= 1e9;
+  *decimal = (u32)remainder;
+
+  remainder -= *decimal;
+  if (remainder >= 0.5) {
+    (*decimal)++; 
+    if (*decimal >= 1000000000) {
+      *decimal = 0;
+      (*integral)++;
+      if (*exp != 0 && *integral >= 10){
+        (*exp)++;
+        *integral = 1;
+      }
+    }
+  } 
+}
+
+
+void readback_floating(Stk* chrs, f32 n){
+  if (isnan(n)) {
+    stk_push(chrs, 'n');
+    stk_push(chrs, 'a');
+    stk_push(chrs, 'n');
+    return;
+  }
+
+  if (n < 0) {
+    stk_push(chrs, '-');
+    n = -n;
+  }
+
+  if (isinf(n)) {
+    stk_push(chrs, 'i');
+    stk_push(chrs, 'n');
+    stk_push(chrs, 'f');
+    return;
+  }
+
+  u32 integral, decimal;
+  i32 exp;
+  splitFloat(n, &integral, &decimal, &exp);
+
+  readback_decimal(chrs, integral);
+  if (decimal) {
+    stk_push(chrs, '.');
+    readback_decimal(chrs, decimal);
+  }
+
+  if (exp != 0) {
+    stk_push(chrs, 'e');
+    readback_signed(chrs, exp);
+  }
+}
+
+
 
 void readback_term(Stk* chrs, Worker* mem, Lnk term, Stk* vars, Stk* dirs, char** id_to_name_data, u64 id_to_name_mcap) {
   //printf("- readback_term: "); debug_print_lnk(term); printf("\n");
