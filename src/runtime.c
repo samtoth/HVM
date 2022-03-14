@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <math.h>
 
 /*! GENERATED_PARALLEL_FLAG !*/
 
@@ -73,9 +74,14 @@ typedef pthread_t Thd;
 typedef u64 Lnk;
 
 #define VAL ((u64) 1)
-#define EXT ((u64) 0x100000000)
-#define ARI ((u64) 0x100000000000000)
+#define EXT ((u64) 0x0000000100000000)
+#define BTN ((u64) 0x0000100000000000)
+#define ARI ((u64) 0x0100000000000000)
 #define TAG ((u64) 0x1000000000000000)
+
+#define TOU32 (0x1)
+#define TOI32 (0x2)
+#define TOF32 (0x3)
 
 #define DP0 (0x0) // points to the dup node that binds this variable (left side)
 #define DP1 (0x1) // points to the dup node that binds this variable (right side)
@@ -277,6 +283,12 @@ Lnk Ctr(u64 ari, u64 fun, u64 pos) {
   return (CTR * TAG) | (ari * ARI) | (fun * EXT) | pos;
 }
 
+
+Lnk Builtin(u64 builtin, u64 ari, u64 pos) {
+  return (CTR * TAG) | (ari * ARI) | (builtin * BTN) | pos;
+}
+
+
 Lnk Cal(u64 ari, u64 fun, u64 pos) {
   return (CAL * TAG) | (ari * ARI) | (fun * EXT) | pos;
 }
@@ -291,6 +303,10 @@ u64 get_ext(Lnk lnk) {
 
 u64 get_val(Lnk lnk) {
   return lnk & 0xFFFFFFFF;
+}
+
+u64 get_builtin(Lnk lnk) {
+  return (lnk / BTN) & 0xFFFF;
 }
 
 u64 get_ari(Lnk lnk) {
@@ -411,7 +427,7 @@ void collect(Worker* mem, Lnk term) {
     case F32: {
       break;
     }
-    case CTR: case CAL: {
+    case CTR: case CAL: case BTN: {
       u64 arity = get_ari(term);
       for (u64 i = 0; i < arity; ++i) {
         collect(mem, ask_arg(mem,term,i));
@@ -869,6 +885,99 @@ Lnk reduce(Worker* mem, u64 root, u64 slen) {
             link(mem, host, done);
           }
 
+          break;
+        }
+        case CTR: { 
+          u64 builtin = get_builtin(term);
+          if (builtin) {
+            u64 arg = ask_arg(mem, term, 0);
+
+
+            u64 c = 0;
+
+            switch (builtin) {
+              case TOU32: {
+                switch (get_tag(arg)) {
+                    case U32: {
+                      c = term;
+                      break;
+                    }
+                    case I32: {
+                      i32 val = get_i32(arg);
+
+                      u32 uval = (u32)val; //Least unsigned int congruint to val
+
+                      c = U_32(uval);
+                      break;
+                    }
+                    case F32: {
+                      f32 val = get_f32(arg);
+
+                      u32 uval = (u32)val;
+
+                      c = U_32(uval);                      
+
+                      break;
+                    }
+                }
+                break;
+              }
+              case TOI32: {
+                switch (get_tag(arg)) {
+                    case U32: {
+                      u32 val = get_val(arg);
+
+                      i32 ival = (i32)val;
+
+                      c = I_32(ival);
+                      break;
+                    }
+                    case I32: {
+                      c = term;
+                      break;
+                    }
+                    case F32: {
+                      f32 val = get_f32(arg);
+
+                      i32 ival = (i32)val;
+
+                      c = I_32(ival);                      
+
+                      break;
+                    }
+                }
+                break;
+              }
+              case TOF32: { 
+                switch (get_tag(arg)) {
+                    case U32: {
+                      u32 val = get_val(arg);
+
+                      f32 fval = (f32)val;
+
+                      c = F_32(fval);
+                      break;
+                    }
+                    case I32: {
+                      i32 val = get_i32(arg);
+
+                      f32 fval = (f32)val;
+
+                      c = F_32(fval);
+                      break;
+                    }
+                    case F32: {
+                      c = term;
+                      break;
+                    }
+                }
+              }
+            }
+
+
+            clear(mem, get_loc(term,0), 1);
+            link(mem, host, c);
+          }
           break;
         }
         case CAL: {

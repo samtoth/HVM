@@ -17,10 +17,18 @@ pub enum DynTerm {
   App { func: Box<DynTerm>, argm: Box<DynTerm> },
   Cal { func: u64, args: Vec<DynTerm> },
   Ctr { func: u64, args: Vec<DynTerm> },
+  Btn { builtin: u64, args: Vec<DynTerm> },
   U32 { numb: u32 },
   F32 { numb: f32 },
   I32 { numb: i32 },
   Op2 { oper: u64, val0: Box<DynTerm>, val1: Box<DynTerm> },
+}
+
+#[derive(Debug)]
+pub enum BuiltinFn {
+  ToU32 = 0x1,
+  ToI32 = 0x2,
+  ToF32 = 0x3
 }
 
 // The right-hand side of a rule, "digested" or "pre-filled" in a way that is almost ready to be
@@ -58,6 +66,18 @@ pub struct DynRule {
 pub struct DynFun {
   pub redex: Vec<bool>,
   pub rules: Vec<DynRule>,
+}
+
+pub fn get_builtin(name: String) -> Option<BuiltinFn> {
+  if name.eq("ToU32") {
+    Some(BuiltinFn::ToU32)
+  } else if name.eq("ToI32") {
+    Some(BuiltinFn::ToI32)
+  } else if name.eq("ToF32") {
+    Some(BuiltinFn::ToF32)
+  } else {
+    None
+  }
 }
 
 pub fn build_dynfun(
@@ -325,13 +345,18 @@ fn term_to_dynterm(comp: &rb::RuleBook, term: &lang::Term, free_vars: u64) -> Dy
         DynTerm::App { func, argm }
       }
       lang::Term::Ctr { name, args } => {
-        let term_func =
-          *comp.name_to_id.get(name).unwrap_or_else(|| panic!("Unbound symbol: {}", name));
-        let term_args = args.iter().map(|arg| convert_term(arg, comp, depth + 0, vars)).collect();
-        if *comp.ctr_is_cal.get(name).unwrap_or(&false) {
-          DynTerm::Cal { func: term_func, args: term_args }
+        if let Some(builtin) = get_builtin(name.clone()) {
+          let term_args = args.iter().map(|arg| convert_term(arg, comp, depth + 0, vars)).collect();
+          DynTerm::Btn {builtin: builtin as u64, args: term_args}
         } else {
-          DynTerm::Ctr { func: term_func, args: term_args }
+          let term_func =
+            *comp.name_to_id.get(name).unwrap_or_else(|| panic!("Unbound symbol: {}", name));
+          let term_args = args.iter().map(|arg| convert_term(arg, comp, depth + 0, vars)).collect();
+          if *comp.ctr_is_cal.get(name).unwrap_or(&false) {
+            DynTerm::Cal { func: term_func, args: term_args }
+          } else {
+            DynTerm::Ctr { func: term_func, args: term_args }
+          }
         }
       }
       lang::Term::U32 { numb } => DynTerm::U32 { numb: *numb },
@@ -440,6 +465,19 @@ fn build_body(dups_count: &mut DupsCount, term: &DynTerm, free_vars: u64) -> Bod
           Elem::Loc { value: rt::Ctr(args.len() as u64, *func, 0), targ, slot: 0 }
         } else {
           Elem::Fix { value: rt::Ctr(0, *func, 0) }
+        }
+      }
+      DynTerm::Btn { builtin, args } => {
+        if !args.is_empty() {
+          let targ = nodes.len() as u64;
+          nodes.push(vec![Elem::Fix { value: 0 }; args.len() as usize]);
+          for (i, arg) in args.iter().enumerate() {
+            let arg = go(arg, dups_count, vars, nodes);
+            link(nodes, targ, i as u64, arg);
+          }
+          Elem::Loc { value: rt::Builtin(*builtin, args.len() as u64, 0), targ, slot: 0 }
+        } else {
+          Elem::Fix { value: rt::Builtin(*builtin, 0, 0) }
         }
       }
       DynTerm::U32 { numb } => Elem::Fix { value: rt::U_32(*numb as u64) },

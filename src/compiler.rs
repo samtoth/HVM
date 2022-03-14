@@ -302,6 +302,16 @@ fn compile_func_rule_term(
         }
         format!("Ctr({}, {}, {})", ctr_args.len(), func, name)
       }
+      bd::DynTerm::Btn { builtin, args } => {
+        let ctr_args: Vec<String> =
+          args.iter().map(|arg| go(code, tab, arg, vars, nams, dups)).collect();
+        let name = fresh(nams, "ctr");
+        line(code, tab, &format!("u64 {} = alloc(mem, {});", name, ctr_args.len()));
+        for (i, arg) in ctr_args.iter().enumerate() {
+          line(code, tab, &format!("link(mem, {} + {}, {});", name, i, arg));
+        }
+        format!("Builtin({}, {}, {})", builtin, ctr_args.len(), name)
+      }
       bd::DynTerm::Cal { func, args } => {
         let cal_args: Vec<String> =
           args.iter().map(|arg| go(code, tab, arg, vars, nams, dups)).collect();

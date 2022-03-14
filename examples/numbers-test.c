@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <math.h>
 
 #define PARALLEL
 
@@ -73,9 +74,14 @@ typedef pthread_t Thd;
 typedef u64 Lnk;
 
 #define VAL ((u64) 1)
-#define EXT ((u64) 0x100000000)
-#define ARI ((u64) 0x100000000000000)
+#define EXT ((u64) 0x0000000100000000)
+#define BTN ((u64) 0x0000100000000000)
+#define ARI ((u64) 0x0100000000000000)
 #define TAG ((u64) 0x1000000000000000)
+
+#define TOU32 (0x1)
+#define TOI32 (0x2)
+#define TOF32 (0x3)
 
 #define DP0 (0x0) // points to the dup node that binds this variable (left side)
 #define DP1 (0x1) // points to the dup node that binds this variable (right side)
@@ -278,6 +284,12 @@ Lnk Ctr(u64 ari, u64 fun, u64 pos) {
   return (CTR * TAG) | (ari * ARI) | (fun * EXT) | pos;
 }
 
+
+Lnk Builtin(u64 builtin, u64 ari, u64 pos) {
+  return (CTR * TAG) | (ari * ARI) | (builtin * BTN) | pos;
+}
+
+
 Lnk Cal(u64 ari, u64 fun, u64 pos) {
   return (CAL * TAG) | (ari * ARI) | (fun * EXT) | pos;
 }
@@ -292,6 +304,10 @@ u64 get_ext(Lnk lnk) {
 
 u64 get_val(Lnk lnk) {
   return lnk & 0xFFFFFFFF;
+}
+
+u64 get_builtin(Lnk lnk) {
+  return (lnk / BTN) & 0xFFFF;
 }
 
 u64 get_ari(Lnk lnk) {
@@ -412,7 +428,7 @@ void collect(Worker* mem, Lnk term) {
     case F32: {
       break;
     }
-    case CTR: case CAL: {
+    case CTR: case CAL: case BTN: {
       u64 arity = get_ari(term);
       for (u64 i = 0; i < arity; ++i) {
         collect(mem, ask_arg(mem,term,i));
@@ -876,6 +892,100 @@ Lnk reduce(Worker* mem, u64 root, u64 slen) {
             link(mem, host, done);
           }
 
+          break;  
+        }
+        case CTR: { 
+          u64 builtin = get_builtin(term);
+          if (builtin) {
+            u64 arg = ask_arg(mem, term, 0);
+
+
+            u64 c = 0;
+
+            switch (builtin) {
+              case TOU32: {
+                switch (get_tag(arg)) {
+                    case U32: {
+                      c = term;
+                      break;
+                    }
+                    case I32: {
+                      i32 val = get_i32(arg);
+
+                      u32 uval = (u32)val; //Least unsigned int congruint to val
+
+                      c = U_32(uval);
+                      break;
+                    }
+                    case F32: {
+                      f32 val = get_f32(arg);
+
+                      u32 uval = (u32)val;
+
+                      c = U_32(uval);                      
+
+                      break;
+                    }
+                }
+                break;
+              }
+              case TOI32: {
+                switch (get_tag(arg)) {
+                    case U32: {
+                      u32 val = get_val(arg);
+
+                      i32 ival = (i32)val;
+
+                      c = I_32(ival);
+                      break;
+                    }
+                    case I32: {
+                      c = term;
+                      break;
+                    }
+                    case F32: {
+                      f32 val = get_f32(arg);
+
+                      i32 ival = (i32)val;
+
+                      c = I_32(ival);                      
+
+                      break;
+                    }
+                }
+                break;
+              }
+              case TOF32: { 
+                switch (get_tag(arg)) {
+                    case U32: {
+                      u32 val = get_val(arg);
+
+                      f32 fval = (f32)val;
+
+                      c = F_32(fval);
+                      break;
+                    }
+                    case I32: {
+                      i32 val = get_i32(arg);
+
+                      f32 fval = (f32)val;
+
+                      c = F_32(fval);
+                      break;
+                    }
+                    case F32: {
+                      c = term;
+                      break;
+                    }
+                }
+              }
+            }
+
+            c = 1234;
+
+            clear(mem, get_loc(term,0), 1);
+            link(mem, host, c);
+          }
           break;
         }
         case CAL: {
@@ -888,65 +998,65 @@ Lnk reduce(Worker* mem, u64 root, u64 slen) {
             case _MAIN_: {
               if (1) {
                 inc_cost(mem);
-                u64 ret_0;
-                if (get_tag(U_32(1)) == U32 && get_tag(U_32(1)) == U32) {
-                  ret_0 = U_32(get_val(U_32(1)) + get_val(U_32(1)));
-                  inc_cost(mem);
-                } else if (get_tag(U_32(1)) == I32 && get_tag(U_32(1)) == I32) {
-                  ret_0 = I_32(get_i32(U_32(1)) + get_i32(U_32(1)));
-                  inc_cost(mem);
-                } else if (get_tag(U_32(1)) == F32 && get_tag(U_32(1)) == F32) {
-                  ret_0 = F_32(get_f32(U_32(1)) + get_f32(U_32(1)));
-                  inc_cost(mem);
-                } else {
-                  u64 op2_1 = alloc(mem, 2);
-                  link(mem, op2_1 + 0, U_32(1));
-                  link(mem, op2_1 + 1, U_32(1));
-                  ret_0 = Op2(ADD, op2_1);
-                }
-                u64 ret_2;
-                if (get_tag(I_32(-1)) == U32 && get_tag(I_32(-4)) == U32) {
-                  ret_2 = U_32(get_val(I_32(-1)) + get_val(I_32(-4)));
-                  inc_cost(mem);
-                } else if (get_tag(I_32(-1)) == I32 && get_tag(I_32(-4)) == I32) {
-                  ret_2 = I_32(get_i32(I_32(-1)) + get_i32(I_32(-4)));
-                  inc_cost(mem);
-                } else if (get_tag(I_32(-1)) == F32 && get_tag(I_32(-4)) == F32) {
-                  ret_2 = F_32(get_f32(I_32(-1)) + get_f32(I_32(-4)));
-                  inc_cost(mem);
-                } else {
-                  u64 op2_3 = alloc(mem, 2);
-                  link(mem, op2_3 + 0, I_32(-1));
-                  link(mem, op2_3 + 1, I_32(-4));
-                  ret_2 = Op2(ADD, op2_3);
-                }
-                u64 ret_4;
-                if (get_tag(F_32(-1.5)) == U32 && get_tag(F_32(5)) == U32) {
-                  ret_4 = U_32(get_val(F_32(-1.5)) * get_val(F_32(5)));
-                  inc_cost(mem);
-                } else if (get_tag(F_32(-1.5)) == I32 && get_tag(F_32(5)) == I32) {
-                  ret_4 = I_32(get_i32(F_32(-1.5)) * get_i32(F_32(5)));
-                  inc_cost(mem);
-                } else if (get_tag(F_32(-1.5)) == F32 && get_tag(F_32(5)) == F32) {
-                  ret_4 = F_32(get_f32(F_32(-1.5)) * get_f32(F_32(5)));
-                  inc_cost(mem);
-                } else {
-                  u64 op2_5 = alloc(mem, 2);
-                  link(mem, op2_5 + 0, F_32(-1.5));
-                  link(mem, op2_5 + 1, F_32(5));
-                  ret_4 = Op2(MUL, op2_5);
-                }
-                u64 ctr_6 = alloc(mem, 0);
-                u64 ctr_7 = alloc(mem, 2);
-                link(mem, ctr_7 + 0, ret_4);
-                link(mem, ctr_7 + 1, Ctr(0, 2, ctr_6));
-                u64 ctr_8 = alloc(mem, 2);
-                link(mem, ctr_8 + 0, ret_2);
-                link(mem, ctr_8 + 1, Ctr(2, 1, ctr_7));
-                u64 ctr_9 = alloc(mem, 2);
-                link(mem, ctr_9 + 0, ret_0);
-                link(mem, ctr_9 + 1, Ctr(2, 1, ctr_8));
-                u64 done = Ctr(2, 1, ctr_9);
+                u64 ctr_0 = alloc(mem, 1);
+                link(mem, ctr_0 + 0, U_32(1));
+                u64 ctr_1 = alloc(mem, 1);
+                link(mem, ctr_1 + 0, I_32(-1));
+                u64 ctr_2 = alloc(mem, 1);
+                link(mem, ctr_2 + 0, F_32(3));
+                u64 ctr_3 = alloc(mem, 0);
+                u64 ctr_4 = alloc(mem, 2);
+                link(mem, ctr_4 + 0, Builtin(1, 1, ctr_2));
+                link(mem, ctr_4 + 1, Ctr(0, 3, ctr_3));
+                u64 ctr_5 = alloc(mem, 2);
+                link(mem, ctr_5 + 0, Builtin(1, 1, ctr_1));
+                link(mem, ctr_5 + 1, Ctr(2, 1, ctr_4));
+                u64 ctr_6 = alloc(mem, 2);
+                link(mem, ctr_6 + 0, Builtin(1, 1, ctr_0));
+                link(mem, ctr_6 + 1, Ctr(2, 1, ctr_5));
+                u64 ctr_7 = alloc(mem, 1);
+                link(mem, ctr_7 + 0, U_32(1));
+                u64 ctr_8 = alloc(mem, 1);
+                link(mem, ctr_8 + 0, I_32(-1));
+                u64 ctr_9 = alloc(mem, 1);
+                link(mem, ctr_9 + 0, F_32(-23));
+                u64 ctr_10 = alloc(mem, 0);
+                u64 ctr_11 = alloc(mem, 2);
+                link(mem, ctr_11 + 0, Builtin(3, 1, ctr_9));
+                link(mem, ctr_11 + 1, Ctr(0, 3, ctr_10));
+                u64 ctr_12 = alloc(mem, 2);
+                link(mem, ctr_12 + 0, Builtin(2, 1, ctr_8));
+                link(mem, ctr_12 + 1, Ctr(2, 1, ctr_11));
+                u64 ctr_13 = alloc(mem, 2);
+                link(mem, ctr_13 + 0, Builtin(2, 1, ctr_7));
+                link(mem, ctr_13 + 1, Ctr(2, 1, ctr_12));
+                u64 ctr_14 = alloc(mem, 1);
+                link(mem, ctr_14 + 0, U_32(1));
+                u64 ctr_15 = alloc(mem, 1);
+                link(mem, ctr_15 + 0, I_32(-5));
+                u64 ctr_16 = alloc(mem, 1);
+                link(mem, ctr_16 + 0, F_32(-25.4));
+                u64 ctr_17 = alloc(mem, 0);
+                u64 ctr_18 = alloc(mem, 2);
+                link(mem, ctr_18 + 0, Builtin(3, 1, ctr_16));
+                link(mem, ctr_18 + 1, Ctr(0, 3, ctr_17));
+                u64 ctr_19 = alloc(mem, 2);
+                link(mem, ctr_19 + 0, Builtin(3, 1, ctr_15));
+                link(mem, ctr_19 + 1, Ctr(2, 1, ctr_18));
+                u64 ctr_20 = alloc(mem, 2);
+                link(mem, ctr_20 + 0, Builtin(3, 1, ctr_14));
+                link(mem, ctr_20 + 1, Ctr(2, 1, ctr_19));
+                u64 ctr_21 = alloc(mem, 0);
+                u64 ctr_22 = alloc(mem, 2);
+                link(mem, ctr_22 + 0, Ctr(2, 1, ctr_20));
+                link(mem, ctr_22 + 1, Ctr(0, 3, ctr_21));
+                u64 ctr_23 = alloc(mem, 2);
+                link(mem, ctr_23 + 0, Ctr(2, 1, ctr_13));
+                link(mem, ctr_23 + 1, Ctr(2, 1, ctr_22));
+                u64 ctr_24 = alloc(mem, 2);
+                link(mem, ctr_24 + 0, Ctr(2, 1, ctr_6));
+                link(mem, ctr_24 + 1, Ctr(2, 1, ctr_23));
+                u64 done = Ctr(2, 1, ctr_24);
                 link(mem, host, done);
                 clear(mem, get_loc(term, 0), 0);
                 init = 1;
@@ -1671,10 +1781,13 @@ int main(int argc, char* argv[]) {
   struct timeval stop, start;
 
   // Id-to-Name map
-  const u64 id_to_name_size = 3;
+  const u64 id_to_name_size = 6;
   char* id_to_name_data[id_to_name_size];
-  id_to_name_data[2] = "Nil";
+  id_to_name_data[3] = "Nil";
+  id_to_name_data[2] = "ToU32";
   id_to_name_data[1] = "Cons";
+  id_to_name_data[5] = "ToF32";
+  id_to_name_data[4] = "ToI32";
   id_to_name_data[0] = "Main";
 ;
 

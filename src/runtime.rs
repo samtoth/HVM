@@ -17,9 +17,14 @@ pub const MEM_SPACE: u64 = U64_PER_GB;
 pub const SEEN_SIZE: usize = 4194304; // uses 32 MB, covers heaps up to 2 GB
 
 pub const VAL: u64 = 1;
-pub const EXT: u64 = 0x100000000;
-pub const ARI: u64 = 0x100000000000000;
-pub const TAG: u64 = 0x1000000000000000;
+pub const EXT: u64 = 0x0000_0001_0000_0000;
+pub const BTN: u64 = 0x0000_1000_0000_0000;
+pub const ARI: u64 = 0x0100_0000_0000_0000;
+pub const TAG: u64 = 0x1000_0000_0000_0000;
+
+pub const TOU32: u64 = 0x2;
+pub const TOI32: u64 = 0x3;
+pub const TOF32: u64 = 0x4;
 
 pub const DP0: u64 = 0x0;
 pub const DP1: u64 = 0x1;
@@ -143,6 +148,10 @@ pub fn Ctr(ari: u64, fun: u64, pos: u64) -> Lnk {
   (CTR * TAG) | (ari * ARI) | (fun * EXT) | pos
 }
 
+pub fn Builtin(builtin: u64, ari: u64, pos: u64) -> Lnk {
+  (CTR * TAG) | (ari * ARI) | (builtin * BTN) | pos
+}
+
 pub fn Cal(ari: u64, fun: u64, pos: u64) -> Lnk {
   (CAL * TAG) | (ari * ARI) | (fun * EXT) | pos
 }
@@ -168,6 +177,10 @@ pub fn get_val(lnk: Lnk) -> u64 {
 
 pub fn get_ari(lnk: Lnk) -> u64 {
   (lnk / ARI) & 0xF
+}
+
+pub fn get_builtin(lnk: Lnk) -> u64 {
+  (lnk / BTN) & 0xFFFF
 }
 
 pub fn get_loc(lnk: Lnk, arg: u64) -> u64 {
@@ -380,6 +393,26 @@ pub fn reduce(
       }
     } else {
       match get_tag(term) {
+        CTR => {
+          let builtin = get_builtin(term);
+            match builtin {
+              TOU32 => {
+                let arg = ask_arg(mem, term, 0);
+                match get_tag(arg) {
+                  U32 => {
+                    inc_cost(mem);
+                    //TODO!!!!!!!!!!!!!!!!!
+                  },
+                  I32 => {},
+                  F32 => {},
+                  _ => {}
+                }
+              }
+              TOI32 => {}
+              TOF32 => {}
+              _ => {}
+            }
+        }
         APP => {
           let arg0 = ask_arg(mem, term, 0);
           if get_tag(arg0) == LAM {
